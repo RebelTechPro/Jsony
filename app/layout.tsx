@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://jsony.dev"),
+  alternates: { canonical: "/" },
   title: {
     default: "Jsony — JSON, fast and local.",
     template: "%s — Jsony",
