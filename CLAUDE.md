@@ -11,7 +11,7 @@ This file gives Claude Code persistent context for this project. Read it at the 
 - **License & repo:** MIT, public GitHub repo on **rebeltechpro** (transferable to a `jsony` org later if needed). README posture: "personal project, issues welcome but no SLA, PRs reviewed when I have time" — captures the trust/SEO benefits of OSS without committing to community-management overhead.
 - **Next.js 16 caveat:** This version postdates Claude's training cutoff. See `AGENTS.md` (auto-imported above) — when in doubt, consult `node_modules/next/dist/docs/` rather than relying on memory.
 - **Pending user actions:** create GitHub repo on rebeltechpro account, add as remote; create Cloudflare Pages project connected to the repo with build command `npm run build` and output dir `out`; add `jsony.dev` as a custom domain in Cloudflare Pages (DNS auto-configures if `jsony.dev` is on Cloudflare). All require the user's auth — Claude can't do them.
-- **Next concrete step (code):** Phase 1, step 4 — smart error messages with line/column. Steps 2 (basic formatter) and 3 (tree view with collapsible nodes + Tree/Raw view toggle) are done.
+- **Next concrete step (code):** Phase 1, step 5 — large-payload handling (Web Worker for parse, virtualization for tree). Steps 2 (basic formatter), 3 (tree view), and 4 (smart errors via `jsonc-parser`, dynamically imported, with line/col + offending-line preview + caret) are done.
 
 Update this section as state changes. If you're a future session reading this, trust the filesystem over this block — verify before acting.
 
