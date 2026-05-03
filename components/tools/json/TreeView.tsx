@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 const ROW_HEIGHT = 24;
@@ -30,6 +38,7 @@ export default function TreeView({ value }: { value: unknown }) {
   const [expanded, setExpanded] = useState<Set<string>>(() =>
     defaultExpansion(value),
   );
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
     setExpanded(defaultExpansion(value));
@@ -43,16 +52,19 @@ export default function TreeView({ value }: { value: unknown }) {
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 12,
+    getItemKey: (index) => rows[index].path,
   });
 
-  const toggle = (path: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
+  const toggle = useCallback((path: string) => {
+    startTransition(() => {
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        if (next.has(path)) next.delete(path);
+        else next.add(path);
+        return next;
+      });
     });
-  };
+  }, []);
 
   return (
     <div ref={parentRef} role="tree" className="h-full overflow-auto">
@@ -88,7 +100,7 @@ export default function TreeView({ value }: { value: unknown }) {
   );
 }
 
-function RowView({
+const RowView = memo(function RowView({
   row,
   expanded,
   onToggle,
@@ -170,7 +182,7 @@ function RowView({
       <Primitive value={row.value} />
     </div>
   );
-}
+});
 
 function Key({ name }: { name: string }) {
   return (
@@ -209,66 +221,106 @@ function Primitive({ value }: { value: unknown }) {
   return <span className="text-rose-600">{String(value)}</span>;
 }
 
-function isContainer(value: unknown): value is object {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
   return (
     value !== null &&
     typeof value === "object" &&
-    (Array.isArray(value) || Object.getPrototypeOf(value) === Object.prototype)
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
   );
 }
 
 function flatten(value: unknown, expanded: Set<string>): Row[] {
   const out: Row[] = [];
-  function walk(
-    v: unknown,
-    name: string | null,
-    path: string,
-    depth: number,
-  ) {
-    if (isContainer(v)) {
-      const isArr = Array.isArray(v);
-      const entries: [string, unknown][] = isArr
-        ? (v as unknown[]).map((c, i) => [String(i), c])
-        : Object.entries(v as Record<string, unknown>);
-      out.push({
-        kind: "container",
-        path,
-        depth,
-        name,
-        isArray: isArr,
-        count: entries.length,
-        isEmpty: entries.length === 0,
-      });
-      if (entries.length > 0 && expanded.has(path)) {
-        for (const [k, c] of entries) {
-          const childPath = path === "" ? k : `${path}.${k}`;
-          walk(c, k, childPath, depth + 1);
-        }
-      }
-    } else {
-      out.push({ kind: "leaf", path, depth, name, value: v });
-    }
-  }
-  walk(value, null, "", 0);
+  walk(value, null, "", 0, expanded, out);
   return out;
+}
+
+function walk(
+  v: unknown,
+  name: string | null,
+  path: string,
+  depth: number,
+  expanded: Set<string>,
+  out: Row[],
+) {
+  if (Array.isArray(v)) {
+    const count = v.length;
+    out.push({
+      kind: "container",
+      path,
+      depth,
+      name,
+      isArray: true,
+      count,
+      isEmpty: count === 0,
+    });
+    if (count === 0 || !expanded.has(path)) return;
+    for (let i = 0; i < count; i++) {
+      const k = String(i);
+      const childPath = path === "" ? k : `${path}.${k}`;
+      walk(v[i], k, childPath, depth + 1, expanded, out);
+    }
+    return;
+  }
+
+  if (isPlainObject(v)) {
+    const keys = Object.keys(v);
+    out.push({
+      kind: "container",
+      path,
+      depth,
+      name,
+      isArray: false,
+      count: keys.length,
+      isEmpty: keys.length === 0,
+    });
+    if (keys.length === 0 || !expanded.has(path)) return;
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const childPath = path === "" ? k : `${path}.${k}`;
+      walk(v[k], k, childPath, depth + 1, expanded, out);
+    }
+    return;
+  }
+
+  out.push({ kind: "leaf", path, depth, name, value: v });
 }
 
 function defaultExpansion(value: unknown): Set<string> {
   const set = new Set<string>([""]);
-  function walk(v: unknown, path: string, depth: number) {
+  function expand(v: unknown, path: string, depth: number) {
     if (depth > AUTO_EXPAND_DEPTH) return;
-    if (!isContainer(v)) return;
-    const isArr = Array.isArray(v);
-    const entries: [string, unknown][] = isArr
-      ? (v as unknown[]).map((c, i) => [String(i), c])
-      : Object.entries(v as Record<string, unknown>);
-    if (entries.length > AUTO_EXPAND_MAX_CHILDREN) return;
-    for (const [k, c] of entries) {
-      const childPath = path === "" ? k : `${path}.${k}`;
-      set.add(childPath);
-      walk(c, childPath, depth + 1);
+    let count = 0;
+    let isArr = false;
+    if (Array.isArray(v)) {
+      count = v.length;
+      isArr = true;
+    } else if (isPlainObject(v)) {
+      count = Object.keys(v).length;
+    } else {
+      return;
+    }
+    if (count > AUTO_EXPAND_MAX_CHILDREN) return;
+    if (isArr) {
+      const arr = v as unknown[];
+      for (let i = 0; i < count; i++) {
+        const k = String(i);
+        const childPath = path === "" ? k : `${path}.${k}`;
+        set.add(childPath);
+        expand(arr[i], childPath, depth + 1);
+      }
+    } else {
+      const obj = v as Record<string, unknown>;
+      const keys = Object.keys(obj);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        const childPath = path === "" ? k : `${path}.${k}`;
+        set.add(childPath);
+        expand(obj[k], childPath, depth + 1);
+      }
     }
   }
-  walk(value, "", 0);
+  expand(value, "", 0);
   return set;
 }
