@@ -11,7 +11,7 @@ This file gives Claude Code persistent context for this project. Read it at the 
 - **License & repo:** MIT, public GitHub repo on **rebeltechpro** (transferable to a `jsony` org later if needed). README posture: "personal project, issues welcome but no SLA, PRs reviewed when I have time" — captures the trust/SEO benefits of OSS without committing to community-management overhead.
 - **Next.js 16 caveat:** This version postdates Claude's training cutoff. See `AGENTS.md` (auto-imported above) — when in doubt, consult `node_modules/next/dist/docs/` rather than relying on memory.
 - **Pending user actions:** create GitHub repo on rebeltechpro account, add as remote; create Cloudflare Pages project connected to the repo with build command `npm run build` and output dir `out`; add `jsony.dev` as a custom domain in Cloudflare Pages (DNS auto-configures if `jsony.dev` is on Cloudflare). All require the user's auth — Claude can't do them.
-- **Next concrete step (code):** Phase 1, step 5 — large-payload handling (Web Worker for parse, virtualization for tree). Steps 2 (basic formatter), 3 (tree view), and 4 (smart errors via `jsonc-parser`, dynamically imported, with line/col + offending-line preview + caret) are done.
+- **Next concrete step (code):** Phase 1, step 6 — JSONPath query bar. Steps 2 (basic formatter), 3 (tree view), 4 (smart errors), and 5 (virtualized tree + Web Worker for parse/stringify) are done.
 
 Update this section as state changes. If you're a future session reading this, trust the filesystem over this block — verify before acting.
 
@@ -53,6 +53,7 @@ Update this section as state changes. If you're a future session reading this, t
 - **Language:** TypeScript (strict mode)
 - **JSON parsing:** Native `JSON.parse` for valid input; a tolerant parser (e.g., `jsonc-parser` or custom) for error reporting with line/column info
 - **Heavy work off-main-thread:** Parsing, JSONPath evaluation, and diff for payloads above ~1MB must run in a Web Worker. `JSON.parse` is synchronous and will jank or freeze the UI on multi-MB inputs otherwise. The "50MB smoothly" success criterion depends on this.
+- **Worker bundling caveat:** Next.js 16.2.4 + Turbopack + `output: "export"` does not currently bundle workers via the standard `new Worker(new URL('./worker.ts', import.meta.url))` pattern — it copies the source `.ts` file as a static asset instead of compiling it. We work around this by pre-bundling the worker with esbuild (`scripts/build-worker.mjs`) into `public/parse.worker.js`, then loading it as `new Worker('/parse.worker.js')`. The build script runs automatically before `next build` and `next dev`. If/when Turbopack's worker handling stabilizes for static export, this can be deleted.
 - **JSONPath:** `jsonpath-plus` or equivalent
 - **Tree virtualization:** `@tanstack/react-virtual` or `react-window`
 - **Diff:** `jsondiffpatch` for structural diffing

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TreeView from "@/components/tools/json/TreeView";
 import type { RichError } from "@/lib/json/parse-rich";
+import type { WorkerResponse } from "@/components/tools/json/parse.worker";
 
 type OutputState =
   | { kind: "idle" }
@@ -12,24 +13,54 @@ type OutputState =
 
 type ViewMode = "tree" | "raw";
 
-let parserModulePromise: Promise<typeof import("@/lib/json/parse-rich")> | null =
-  null;
-function loadParser() {
-  if (!parserModulePromise) {
-    parserModulePromise = import("@/lib/json/parse-rich");
-  }
-  return parserModulePromise;
-}
-
 export default function Formatter() {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<OutputState>({ kind: "idle" });
   const [view, setView] = useState<ViewMode>("tree");
 
+  const workerRef = useRef<Worker | null>(null);
+  const requestIdRef = useRef(0);
+  const pendingRef = useRef(
+    new Map<number, (r: WorkerResponse) => void>(),
+  );
+
+  const ensureWorker = (): Worker | null => {
+    if (typeof window === "undefined") return null;
+    if (!workerRef.current) {
+      const worker = new Worker("/parse.worker.js");
+      worker.addEventListener("message", (e: MessageEvent<WorkerResponse>) => {
+        const handler = pendingRef.current.get(e.data.id);
+        if (handler) {
+          pendingRef.current.delete(e.data.id);
+          handler(e.data);
+        }
+      });
+      workerRef.current = worker;
+    }
+    return workerRef.current;
+  };
+
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
   const handleFormat = async () => {
+    const worker = ensureWorker();
+    if (!worker) return;
+
+    const id = ++requestIdRef.current;
     setOutput({ kind: "loading" });
-    const { parseRich } = await loadParser();
-    const result = parseRich(input);
+
+    const result = await new Promise<WorkerResponse>((resolve) => {
+      pendingRef.current.set(id, resolve);
+      worker.postMessage({ id, input });
+    });
+
+    if (id !== requestIdRef.current) return;
+
     if (!result.ok) {
       setOutput({ kind: "invalid", errors: result.errors });
       return;
@@ -38,12 +69,11 @@ export default function Formatter() {
       setOutput({ kind: "idle" });
       return;
     }
-    const raw = JSON.stringify(result.value, null, 2);
     setOutput({
       kind: "parsed",
       value: result.value,
-      raw,
-      bytes: new Blob([raw]).size,
+      raw: result.raw,
+      bytes: result.bytes,
     });
   };
 
@@ -81,7 +111,7 @@ export default function Formatter() {
               id="json-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onFocus={() => loadParser().catch(() => {})}
+              onFocus={() => ensureWorker()}
               spellCheck={false}
               placeholder={'Paste JSON here, e.g. {"hello": "world"}'}
               className="h-full w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-sm leading-6 text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
