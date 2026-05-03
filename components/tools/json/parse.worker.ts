@@ -1,8 +1,13 @@
 import { JSONPath } from "jsonpath-plus";
 import { parseRich, type RichError } from "@/lib/json/parse-rich";
+import {
+  DEFAULT_SETTINGS,
+  indentToString,
+  type Settings,
+} from "@/lib/json/settings";
 
 type WorkerRequest =
-  | { kind: "parse"; id: number; input: string }
+  | { kind: "parse"; id: number; input: string; settings: Settings }
   | { kind: "query"; id: number; path: string };
 
 export type WorkerResponse =
@@ -39,15 +44,15 @@ let cached: { value: unknown } | null = null;
 
 self.addEventListener("message", (e: MessageEvent<WorkerRequest>) => {
   if (e.data.kind === "parse") {
-    handleParse(e.data.id, e.data.input);
+    handleParse(e.data.id, e.data.input, e.data.settings ?? DEFAULT_SETTINGS);
   } else if (e.data.kind === "query") {
     handleQuery(e.data.id, e.data.path);
   }
 });
 
-function handleParse(id: number, input: string) {
+function handleParse(id: number, input: string, settings: Settings) {
   try {
-    const result = parseRich(input);
+    const result = parseRich(input, { tolerant: settings.tolerant });
     if (!result.ok) {
       cached = null;
       const response: WorkerResponse = {
@@ -72,14 +77,15 @@ function handleParse(id: number, input: string) {
       self.postMessage(response);
       return;
     }
-    cached = { value: result.value };
-    const raw = JSON.stringify(result.value, null, 2);
+    const value = settings.sortKeys ? sortKeysDeep(result.value) : result.value;
+    cached = { value };
+    const raw = JSON.stringify(value, null, indentToString(settings.indent));
     const bytes = new Blob([raw]).size;
     const response: WorkerResponse = {
       id,
       kind: "parse",
       ok: true,
-      value: result.value,
+      value,
       raw,
       bytes,
     };
@@ -147,6 +153,28 @@ function handleQuery(id: number, path: string) {
     };
     self.postMessage(response);
   }
+}
+
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const out = new Array(value.length);
+    for (let i = 0; i < value.length; i++) out[i] = sortKeysDeep(value[i]);
+    return out;
+  }
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj).sort();
+    const out: Record<string, unknown> = {};
+    for (let i = 0; i < keys.length; i++) {
+      out[keys[i]] = sortKeysDeep(obj[keys[i]]);
+    }
+    return out;
+  }
+  return value;
 }
 
 export {};

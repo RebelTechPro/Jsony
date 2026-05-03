@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import TreeView from "@/components/tools/json/TreeView";
 import type { RichError } from "@/lib/json/parse-rich";
 import type { WorkerResponse } from "@/components/tools/json/parse.worker";
+import {
+  DEFAULT_SETTINGS,
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from "@/lib/json/settings";
 
 type OutputState =
   | { kind: "idle" }
@@ -27,6 +33,21 @@ export default function Formatter() {
   const [view, setView] = useState<ViewMode>("tree");
   const [query, setQuery] = useState("");
   const [queryState, setQueryState] = useState<QueryState>({ kind: "idle" });
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    // Client-only hydration of saved settings. This must run after mount,
+    // not in the useState initializer, because localStorage is unavailable
+    // during static-export SSR and using it there would cause a hydration
+    // mismatch. The flash of defaults isn't visible because output is empty
+    // on first render anyway.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSettings(loadSettings());
+  }, []);
+
+  useEffect(() => {
+    saveSettings(settings);
+  }, [settings]);
 
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
@@ -61,17 +82,23 @@ export default function Formatter() {
     };
   }, []);
 
-  const formatText = async (text: string) => {
+  const formatText = async (text: string, settingsOverride?: Settings) => {
     const worker = ensureWorker();
     if (!worker) return;
 
+    const effectiveSettings = settingsOverride ?? settings;
     const id = ++requestIdRef.current;
     setOutput({ kind: "loading" });
     setQueryState({ kind: "idle" });
 
     const result = await new Promise<WorkerResponse>((resolve) => {
       pendingRef.current.set(id, resolve);
-      worker.postMessage({ kind: "parse", id, input: text });
+      worker.postMessage({
+        kind: "parse",
+        id,
+        input: text,
+        settings: effectiveSettings,
+      });
     });
 
     if (id !== requestIdRef.current) return;
@@ -130,6 +157,13 @@ export default function Formatter() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, output]);
+
+  const handleSettingsChange = (next: Settings) => {
+    setSettings(next);
+    if (output.kind === "parsed" && input.trim() !== "") {
+      void formatText(input, next);
+    }
+  };
 
   const handleFormat = () => formatText(input);
 
@@ -259,6 +293,8 @@ export default function Formatter() {
         </div>
       </div>
 
+      <SettingsBar settings={settings} onChange={handleSettingsChange} />
+
       <QueryBar
         query={query}
         onQueryChange={handleQueryChange}
@@ -341,6 +377,102 @@ function QueryBar({
         </p>
       )}
     </div>
+  );
+}
+
+function SettingsBar({
+  settings,
+  onChange,
+}: {
+  settings: Settings;
+  onChange: (next: Settings) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          Indent
+        </span>
+        <Segmented
+          value={settings.indent}
+          onChange={(indent) => onChange({ ...settings, indent })}
+          options={[
+            { value: 2, label: "2" },
+            { value: 4, label: "4" },
+            { value: "tab", label: "Tab" },
+          ]}
+        />
+      </div>
+      <Toggle
+        label="Sort keys"
+        checked={settings.sortKeys}
+        onChange={(sortKeys) => onChange({ ...settings, sortKeys })}
+      />
+      <Toggle
+        label="Allow trailing commas & comments"
+        checked={settings.tolerant}
+        onChange={(tolerant) => onChange({ ...settings, tolerant })}
+      />
+    </div>
+  );
+}
+
+function Segmented<T extends string | number>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (next: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div
+      role="radiogroup"
+      className="inline-flex rounded-md border border-zinc-200 p-0.5 text-xs dark:border-zinc-800"
+    >
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={String(opt.value)}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt.value)}
+            className={
+              active
+                ? "rounded bg-zinc-900 px-2.5 py-1 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+                : "rounded px-2.5 py-1 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            }
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label className="inline-flex cursor-pointer select-none items-center gap-2">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+      />
+      <span className="text-zinc-700 dark:text-zinc-300">{label}</span>
+    </label>
   );
 }
 

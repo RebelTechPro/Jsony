@@ -18,15 +18,19 @@ export type RichParseResult =
   | { ok: true; value: unknown }
   | { ok: false; errors: RichError[] };
 
-export function parseRich(input: string): RichParseResult {
+export function parseRich(
+  input: string,
+  options: { tolerant?: boolean } = {},
+): RichParseResult {
   if (input.trim() === "") {
     return { ok: true, value: undefined };
   }
 
+  const tolerant = options.tolerant ?? false;
   const errors: ParseError[] = [];
   const value = jsoncParse(input, errors, {
-    allowTrailingComma: false,
-    disallowComments: true,
+    allowTrailingComma: tolerant,
+    disallowComments: !tolerant,
   });
 
   if (errors.length === 0) {
