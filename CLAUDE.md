@@ -10,7 +10,7 @@ This file gives Claude Code persistent context for this project. Read it at the 
 - **Brand/domain:** `jsony.dev` (purchased). Display name: **Jsony**. Fresh domain — no inherited SEO authority, starts at zero.
 - **License & repo:** MIT, public GitHub repo on **rebeltechpro** (transferable to a `jsony` org later if needed). README posture: "personal project, issues welcome but no SLA, PRs reviewed when I have time" — captures the trust/SEO benefits of OSS without committing to community-management overhead.
 - **Next.js 16 caveat:** This version postdates Claude's training cutoff. See `AGENTS.md` (auto-imported above) — when in doubt, consult `node_modules/next/dist/docs/` rather than relying on memory.
-- **Pending user actions:** create GitHub repo on rebeltechpro account, add as remote; create Vercel project pointing at `jsony.dev`. Both require the user's auth — Claude can't do them.
+- **Pending user actions:** create GitHub repo on rebeltechpro account, add as remote; create Cloudflare Pages project connected to the repo with build command `npm run build` and output dir `out`; add `jsony.dev` as a custom domain in Cloudflare Pages (DNS auto-configures if `jsony.dev` is on Cloudflare). All require the user's auth — Claude can't do them.
 - **Next concrete step (code):** Phase 1, step 2 — basic JSON formatter (input textarea → format → output → validation).
 
 Update this section as state changes. If you're a future session reading this, trust the filesystem over this block — verify before acting.
@@ -48,7 +48,7 @@ Update this section as state changes. If you're a future session reading this, t
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router)
-- **Hosting:** Vercel
+- **Hosting:** Cloudflare Pages (static export). `next.config.ts` has `output: "export"` — the build produces an `out/` directory of static HTML/JS/CSS. No SSR, no API routes, no Node runtime in production. This is enforced architecturally: `output: "export"` will fail the build if anyone adds a route that requires server rendering, which is exactly the constraint we want for the "100% client-side" promise.
 - **Styling:** Tailwind CSS
 - **Language:** TypeScript (strict mode)
 - **JSON parsing:** Native `JSON.parse` for valid input; a tolerant parser (e.g., `jsonc-parser` or custom) for error reporting with line/column info
@@ -56,7 +56,7 @@ Update this section as state changes. If you're a future session reading this, t
 - **JSONPath:** `jsonpath-plus` or equivalent
 - **Tree virtualization:** `@tanstack/react-virtual` or `react-window`
 - **Diff:** `jsondiffpatch` for structural diffing
-- **Analytics:** Plausible or Vercel Analytics only — both are cookieless and consistent with the privacy positioning. Do **not** add Google Analytics: it requires a consent banner in the EU and undermines the "no tracking" story.
+- **Analytics:** Cloudflare Web Analytics (cookieless, free, built into Cloudflare Pages). Aligns with the privacy positioning. Do **not** add Google Analytics: it requires a consent banner in the EU and undermines the "no tracking" story.
 - **Search Console:** set up before public launch (no cookies, safe to use).
 
 **Architectural rule:** All JSON processing must happen client-side. No API routes that accept user JSON. This is a feature, not just an implementation choice.

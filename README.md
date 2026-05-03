@@ -15,7 +15,7 @@ Existing free JSON tools are slow on large payloads, ad-cluttered, send your dat
 
 ## Stack
 
-Next.js 16 (App Router), React 19, Tailwind 4, TypeScript strict mode. Deployed on Vercel.
+Next.js 16 (App Router) with static export, React 19, Tailwind 4, TypeScript strict mode. Hosted on Cloudflare Pages.
 
 ## Local development
 
