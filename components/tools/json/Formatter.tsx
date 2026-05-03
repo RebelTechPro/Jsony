@@ -47,7 +47,7 @@ export default function Formatter() {
     };
   }, []);
 
-  const handleFormat = async () => {
+  const formatText = async (text: string) => {
     const worker = ensureWorker();
     if (!worker) return;
 
@@ -56,7 +56,7 @@ export default function Formatter() {
 
     const result = await new Promise<WorkerResponse>((resolve) => {
       pendingRef.current.set(id, resolve);
-      worker.postMessage({ id, input });
+      worker.postMessage({ id, input: text });
     });
 
     if (id !== requestIdRef.current) return;
@@ -75,6 +75,33 @@ export default function Formatter() {
       raw: result.raw,
       bytes: result.bytes,
     });
+  };
+
+  const handleFormat = () => formatText(input);
+
+  const handleFileChosen = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      setInput(text);
+      formatText(text);
+    };
+    reader.onerror = () => {
+      setOutput({
+        kind: "invalid",
+        errors: [
+          {
+            message: `Could not read file: ${reader.error?.message ?? "unknown error"}`,
+            line: 1,
+            column: 1,
+            offset: 0,
+            length: 0,
+            lineText: "",
+          },
+        ],
+      });
+    };
+    reader.readAsText(file);
   };
 
   const handleClear = () => {
@@ -101,6 +128,20 @@ export default function Formatter() {
         >
           Clear
         </button>
+        <label className="cursor-pointer rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900">
+          <input
+            type="file"
+            accept=".json,application/json,text/plain,text/*"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileChosen(file);
+              e.target.value = "";
+            }}
+            onFocus={() => ensureWorker()}
+          />
+          Open file
+        </label>
         <StatusPill output={output} />
       </div>
 
