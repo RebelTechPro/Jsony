@@ -134,14 +134,12 @@ function OutputPane({
         </span>
         <ViewToggle view={view} onChange={onViewChange} />
       </div>
-      <div className="flex-1 overflow-auto rounded-md border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex-1 overflow-hidden rounded-md border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
         {output.kind === "parsed" ? (
           view === "tree" ? (
-            <div className="p-2">
-              <TreeView value={output.value} />
-            </div>
+            <TreeView value={output.value} />
           ) : (
-            <pre className="px-3 py-2 font-mono text-sm leading-6 text-zinc-900 dark:text-zinc-100">
+            <pre className="h-full overflow-auto px-3 py-2 font-mono text-sm leading-6 text-zinc-900 dark:text-zinc-100">
               {output.raw}
             </pre>
           )

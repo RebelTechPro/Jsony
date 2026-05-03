@@ -25,16 +25,3 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Tree view chevron — rotate when parent <details> is open */
-.tree-summary {
-  list-style: none;
-}
-.tree-summary::-webkit-details-marker {
-  display: none;
-}
-.tree-chevron {
-  transition: transform 120ms ease-out;
-}
-details[open] > .tree-summary .tree-chevron {
-  transform: rotate(90deg);
-}
