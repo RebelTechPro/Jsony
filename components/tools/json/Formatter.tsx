@@ -33,6 +33,10 @@ export default function Formatter() {
   const pendingRef = useRef(
     new Map<number, (r: WorkerResponse) => void>(),
   );
+  const wasPastedRef = useRef(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
 
   const ensureWorker = (): Worker | null => {
     if (typeof window === "undefined") return null;
@@ -166,6 +170,32 @@ export default function Formatter() {
     if (q.trim() === "") setQueryState({ kind: "idle" });
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setInput(value);
+    if (wasPastedRef.current) {
+      wasPastedRef.current = false;
+      if (value.trim() !== "") void formatText(value);
+    }
+  };
+
+  const handleCopy = async () => {
+    const text =
+      query.trim() !== "" && queryState.kind === "result"
+        ? queryState.raw
+        : output.kind === "parsed"
+          ? output.raw
+          : "";
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+    setTimeout(() => setCopyState("idle"), 1500);
+  };
+
   const queryActive = query.trim() !== "";
   const displayValue =
     queryActive && queryState.kind === "result"
@@ -207,6 +237,23 @@ export default function Formatter() {
           />
           Open file
         </label>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          disabled={
+            !(
+              (query.trim() !== "" && queryState.kind === "result") ||
+              output.kind === "parsed"
+            )
+          }
+        >
+          {copyState === "copied"
+            ? "Copied"
+            : copyState === "error"
+              ? "Copy failed"
+              : "Copy"}
+        </button>
         <div className="ml-auto">
           <StatusPill output={output} />
         </div>
@@ -225,7 +272,10 @@ export default function Formatter() {
             <textarea
               id="json-input"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInputChange}
+              onPaste={() => {
+                wasPastedRef.current = true;
+              }}
               onFocus={() => ensureWorker()}
               spellCheck={false}
               placeholder={'Paste JSON here, e.g. {"hello": "world"}'}
