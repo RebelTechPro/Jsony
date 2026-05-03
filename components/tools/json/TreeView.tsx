@@ -47,6 +47,10 @@ export default function TreeView({ value }: { value: unknown }) {
   const rows = useMemo(() => flatten(value, expanded), [value, expanded]);
 
   const parentRef = useRef<HTMLDivElement>(null);
+  // React Compiler can't memoize this hook's return; @tanstack/react-virtual
+  // returns functions whose identities are intentionally unstable. The
+  // component still works — Compiler just opts out of auto-memoization here.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -127,6 +131,7 @@ const RowView = memo(function RowView({
         <div
           role="treeitem"
           aria-level={row.depth + 1}
+          aria-selected={false}
           style={{ paddingLeft: indent }}
           className="flex h-full items-center gap-1 whitespace-nowrap pr-2"
         >
@@ -145,6 +150,7 @@ const RowView = memo(function RowView({
         role="treeitem"
         aria-level={row.depth + 1}
         aria-expanded={expanded}
+        aria-selected={false}
         tabIndex={0}
         onClick={() => onToggle(row.path)}
         onKeyDown={(e) => {
@@ -174,6 +180,7 @@ const RowView = memo(function RowView({
     <div
       role="treeitem"
       aria-level={row.depth + 1}
+      aria-selected={false}
       style={{ paddingLeft: indent }}
       className="flex h-full items-center gap-1 whitespace-nowrap pr-2"
     >
@@ -305,6 +312,7 @@ function defaultExpansion(value: unknown): Set<string> {
     if (isArr) {
       const arr = v as unknown[];
       for (let i = 0; i < count; i++) {
+        if (!shouldAutoExpandChild(arr[i])) continue;
         const k = String(i);
         const childPath = path === "" ? k : `${path}.${k}`;
         set.add(childPath);
@@ -315,6 +323,7 @@ function defaultExpansion(value: unknown): Set<string> {
       const keys = Object.keys(obj);
       for (let i = 0; i < keys.length; i++) {
         const k = keys[i];
+        if (!shouldAutoExpandChild(obj[k])) continue;
         const childPath = path === "" ? k : `${path}.${k}`;
         set.add(childPath);
         expand(obj[k], childPath, depth + 1);
@@ -323,4 +332,11 @@ function defaultExpansion(value: unknown): Set<string> {
   }
   expand(value, "", 0);
   return set;
+}
+
+function shouldAutoExpandChild(child: unknown): boolean {
+  if (Array.isArray(child)) return child.length <= AUTO_EXPAND_MAX_CHILDREN;
+  if (isPlainObject(child))
+    return Object.keys(child).length <= AUTO_EXPAND_MAX_CHILDREN;
+  return true;
 }

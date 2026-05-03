@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Bundled artifacts — esbuild output, not ours to lint.
+    "public/parse.worker.js",
+    "public/parse.worker.js.map",
   ]),
 ]);
 

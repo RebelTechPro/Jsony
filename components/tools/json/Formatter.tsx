@@ -118,14 +118,8 @@ export default function Formatter() {
   };
 
   useEffect(() => {
-    if (output.kind !== "parsed") {
-      if (queryState.kind !== "idle") setQueryState({ kind: "idle" });
-      return;
-    }
-    if (query.trim() === "") {
-      if (queryState.kind !== "idle") setQueryState({ kind: "idle" });
-      return;
-    }
+    if (output.kind !== "parsed") return;
+    if (query.trim() === "") return;
     const timer = setTimeout(() => {
       runQuery(query);
     }, QUERY_DEBOUNCE_MS);
@@ -165,6 +159,11 @@ export default function Formatter() {
     setOutput({ kind: "idle" });
     setQuery("");
     setQueryState({ kind: "idle" });
+  };
+
+  const handleQueryChange = (q: string) => {
+    setQuery(q);
+    if (q.trim() === "") setQueryState({ kind: "idle" });
   };
 
   const queryActive = query.trim() !== "";
@@ -208,12 +207,14 @@ export default function Formatter() {
           />
           Open file
         </label>
-        <StatusPill output={output} />
+        <div className="ml-auto">
+          <StatusPill output={output} />
+        </div>
       </div>
 
       <QueryBar
         query={query}
-        onQueryChange={setQuery}
+        onQueryChange={handleQueryChange}
         state={queryState}
         enabled={output.kind === "parsed"}
       />

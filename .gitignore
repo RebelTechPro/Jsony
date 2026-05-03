@@ -50,3 +50,6 @@ json-reader.html
 
 # generated test fixtures (regen with: node scripts/generate-fixtures.mjs)
 /test/fixtures/*.json
+
+# review screenshots / scratch notes (local only)
+/issues/
