@@ -11,12 +11,22 @@ type OutputState =
   | { kind: "parsed"; value: unknown; raw: string; bytes: number }
   | { kind: "invalid"; errors: RichError[] };
 
+type QueryState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "result"; value: unknown; raw: string; bytes: number; count: number }
+  | { kind: "error"; message: string };
+
 type ViewMode = "tree" | "raw";
+
+const QUERY_DEBOUNCE_MS = 250;
 
 export default function Formatter() {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<OutputState>({ kind: "idle" });
   const [view, setView] = useState<ViewMode>("tree");
+  const [query, setQuery] = useState("");
+  const [queryState, setQueryState] = useState<QueryState>({ kind: "idle" });
 
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
@@ -53,13 +63,15 @@ export default function Formatter() {
 
     const id = ++requestIdRef.current;
     setOutput({ kind: "loading" });
+    setQueryState({ kind: "idle" });
 
     const result = await new Promise<WorkerResponse>((resolve) => {
       pendingRef.current.set(id, resolve);
-      worker.postMessage({ id, input: text });
+      worker.postMessage({ kind: "parse", id, input: text });
     });
 
     if (id !== requestIdRef.current) return;
+    if (result.kind !== "parse") return;
 
     if (!result.ok) {
       setOutput({ kind: "invalid", errors: result.errors });
@@ -76,6 +88,50 @@ export default function Formatter() {
       bytes: result.bytes,
     });
   };
+
+  const runQuery = async (path: string) => {
+    const worker = ensureWorker();
+    if (!worker) return;
+    const id = ++requestIdRef.current;
+    setQueryState({ kind: "loading" });
+
+    const result = await new Promise<WorkerResponse>((resolve) => {
+      pendingRef.current.set(id, resolve);
+      worker.postMessage({ kind: "query", id, path });
+    });
+
+    if (id !== requestIdRef.current) return;
+    if (result.kind !== "query") return;
+
+    if (!result.ok) {
+      setQueryState({ kind: "error", message: result.error });
+      return;
+    }
+    const count = Array.isArray(result.value) ? result.value.length : 1;
+    setQueryState({
+      kind: "result",
+      value: result.value,
+      raw: result.raw,
+      bytes: result.bytes,
+      count,
+    });
+  };
+
+  useEffect(() => {
+    if (output.kind !== "parsed") {
+      if (queryState.kind !== "idle") setQueryState({ kind: "idle" });
+      return;
+    }
+    if (query.trim() === "") {
+      if (queryState.kind !== "idle") setQueryState({ kind: "idle" });
+      return;
+    }
+    const timer = setTimeout(() => {
+      runQuery(query);
+    }, QUERY_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, output]);
 
   const handleFormat = () => formatText(input);
 
@@ -107,7 +163,17 @@ export default function Formatter() {
   const handleClear = () => {
     setInput("");
     setOutput({ kind: "idle" });
+    setQuery("");
+    setQueryState({ kind: "idle" });
   };
+
+  const queryActive = query.trim() !== "";
+  const displayValue =
+    queryActive && queryState.kind === "result"
+      ? { value: queryState.value, raw: queryState.raw, bytes: queryState.bytes }
+      : output.kind === "parsed"
+        ? { value: output.value, raw: output.raw, bytes: output.bytes }
+        : null;
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -145,6 +211,13 @@ export default function Formatter() {
         <StatusPill output={output} />
       </div>
 
+      <QueryBar
+        query={query}
+        onQueryChange={setQuery}
+        state={queryState}
+        enabled={output.kind === "parsed"}
+      />
+
       <div className="grid flex-1 gap-4 lg:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Pane label="Input" htmlFor="json-input">
@@ -160,10 +233,89 @@ export default function Formatter() {
           </Pane>
           {output.kind === "invalid" && <ErrorList errors={output.errors} />}
         </div>
-        <OutputPane output={output} view={view} onViewChange={setView} />
+        <OutputPane
+          displayValue={displayValue}
+          fallback={output.kind}
+          queryActive={queryActive}
+          queryState={queryState}
+          view={view}
+          onViewChange={setView}
+        />
       </div>
     </div>
   );
+}
+
+function QueryBar({
+  query,
+  onQueryChange,
+  state,
+  enabled,
+}: {
+  query: string;
+  onQueryChange: (q: string) => void;
+  state: QueryState;
+  enabled: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label
+        htmlFor="json-query"
+        className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+      >
+        JSONPath query
+      </label>
+      <div className="flex items-center gap-2">
+        <span className="select-none font-mono text-sm text-zinc-400 dark:text-zinc-500">
+          $
+        </span>
+        <input
+          id="json-query"
+          type="text"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          placeholder={enabled ? ".users[*].email" : "Format JSON first"}
+          disabled={!enabled}
+          className="flex-1 rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-sm text-zinc-900 outline-none focus:border-zinc-500 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
+        />
+        <QueryStatus state={state} query={query} />
+      </div>
+      {state.kind === "error" && (
+        <p className="font-mono text-xs text-rose-600 dark:text-rose-400">
+          {state.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function QueryStatus({
+  state,
+  query,
+}: {
+  state: QueryState;
+  query: string;
+}) {
+  if (query.trim() === "" || state.kind === "idle") return null;
+  if (state.kind === "loading") {
+    return (
+      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+        Querying…
+      </span>
+    );
+  }
+  if (state.kind === "result") {
+    return (
+      <span className="rounded-full border border-zinc-300 bg-zinc-50 px-2.5 py-0.5 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+        {state.count === 1 ? "1 match" : `${state.count} matches`}
+      </span>
+    );
+  }
+  return null;
 }
 
 function Pane({
@@ -189,11 +341,17 @@ function Pane({
 }
 
 function OutputPane({
-  output,
+  displayValue,
+  fallback,
+  queryActive,
+  queryState,
   view,
   onViewChange,
 }: {
-  output: OutputState;
+  displayValue: { value: unknown; raw: string; bytes: number } | null;
+  fallback: OutputState["kind"];
+  queryActive: boolean;
+  queryState: QueryState;
   view: ViewMode;
   onViewChange: (v: ViewMode) => void;
 }) {
@@ -201,26 +359,30 @@ function OutputPane({
     <div className="flex min-h-[24rem] flex-col gap-2 lg:min-h-[32rem]">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-          Output
+          {queryActive ? "Query result" : "Output"}
         </span>
         <ViewToggle view={view} onChange={onViewChange} />
       </div>
       <div className="flex-1 overflow-hidden rounded-md border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
-        {output.kind === "parsed" ? (
+        {displayValue ? (
           view === "tree" ? (
-            <TreeView value={output.value} />
+            <TreeView value={displayValue.value} />
           ) : (
             <pre className="h-full overflow-auto px-3 py-2 font-mono text-sm leading-6 text-zinc-900 dark:text-zinc-100">
-              {output.raw}
+              {displayValue.raw}
             </pre>
           )
         ) : (
           <p className="px-3 py-2 font-mono text-sm text-zinc-400 dark:text-zinc-500">
-            {output.kind === "invalid"
-              ? "—"
-              : output.kind === "loading"
-                ? "Parsing…"
-                : "Formatted JSON will appear here."}
+            {queryActive && queryState.kind === "loading"
+              ? "Querying…"
+              : queryActive && queryState.kind === "error"
+                ? "—"
+                : fallback === "invalid"
+                  ? "—"
+                  : fallback === "loading"
+                    ? "Parsing…"
+                    : "Formatted JSON will appear here."}
           </p>
         )}
       </div>
