@@ -96,7 +96,7 @@ export default function HomePage() {
         <p>
           100% client-side. No tracking, no uploads, no cookie banner.{" "}
           <a
-            href="https://github.com/rebeltechpro/jsony"
+            href="https://github.com/RebelTechPro/Jsony"
             className="underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-100"
           >
             View source on GitHub
