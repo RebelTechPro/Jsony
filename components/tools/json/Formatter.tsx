@@ -10,6 +10,7 @@ import {
   saveSettings,
   type Settings,
 } from "@/lib/json/settings";
+import { readFileAsText, useFileDrop } from "@/lib/hooks/useFileDrop";
 
 type OutputState =
   | { kind: "idle" }
@@ -167,30 +168,46 @@ export default function Formatter() {
 
   const handleFormat = () => formatText(input);
 
-  const handleFileChosen = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result ?? "");
-      setInput(text);
-      formatText(text);
-    };
-    reader.onerror = () => {
-      setOutput({
-        kind: "invalid",
-        errors: [
-          {
-            message: `Could not read file: ${reader.error?.message ?? "unknown error"}`,
-            line: 1,
-            column: 1,
-            offset: 0,
-            length: 0,
-            lineText: "",
-          },
-        ],
-      });
-    };
-    reader.readAsText(file);
+  const loadFromText = (text: string) => {
+    setInput(text);
+    void formatText(text);
   };
+
+  const handleFileChosen = (file: File) => {
+    readFileAsText(file)
+      .then(loadFromText)
+      .catch((err: unknown) => {
+        setOutput({
+          kind: "invalid",
+          errors: [
+            {
+              message: `Could not read file: ${err instanceof Error ? err.message : "unknown error"}`,
+              line: 1,
+              column: 1,
+              offset: 0,
+              length: 0,
+              lineText: "",
+            },
+          ],
+        });
+      });
+  };
+
+  const { isDragging, dropProps } = useFileDrop(loadFromText, (msg) => {
+    setOutput({
+      kind: "invalid",
+      errors: [
+        {
+          message: `Could not read file: ${msg}`,
+          line: 1,
+          column: 1,
+          offset: 0,
+          length: 0,
+          lineText: "",
+        },
+      ],
+    });
+  });
 
   const handleClear = () => {
     setInput("");
@@ -314,8 +331,17 @@ export default function Formatter() {
               }}
               onFocus={() => ensureWorker()}
               spellCheck={false}
-              placeholder={'Paste JSON here, e.g. {"hello": "world"}'}
-              className="h-full w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-sm leading-6 text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
+              placeholder={
+                isDragging
+                  ? "Drop JSON file to load…"
+                  : 'Paste JSON here, e.g. {"hello": "world"}'
+              }
+              {...dropProps}
+              className={`h-full w-full resize-none rounded-md border-2 px-3 py-2 font-mono text-sm leading-6 outline-none transition-colors ${
+                isDragging
+                  ? "border-zinc-500 bg-zinc-100 text-zinc-900 dark:border-zinc-400 dark:bg-zinc-900 dark:text-zinc-100"
+                  : "border-zinc-200 bg-white text-zinc-900 focus:border-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
+              }`}
             />
           </Pane>
           {output.kind === "invalid" && <ErrorList errors={output.errors} />}

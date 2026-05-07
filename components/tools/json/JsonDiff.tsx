@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RichError } from "@/lib/json/parse-rich";
 import type { WorkerResponse } from "@/components/tools/json/parse.worker";
+import { readFileAsText, useFileDrop } from "@/lib/hooks/useFileDrop";
 
 type DiffState =
   | { kind: "idle" }
@@ -101,17 +102,26 @@ export default function JsonDiff() {
     if (state.kind === "result") void runDiff(right, left);
   };
 
-  const handleFile = (which: "left" | "right", file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result ?? "");
-      if (which === "left") setLeft(text);
-      else setRight(text);
-      if (which === "left") void runDiff(text, right);
-      else void runDiff(left, text);
-    };
-    reader.readAsText(file);
+  const loadInto = (which: "left" | "right", text: string) => {
+    if (which === "left") {
+      setLeft(text);
+      void runDiff(text, right);
+    } else {
+      setRight(text);
+      void runDiff(left, text);
+    }
   };
+
+  const handleFile = (which: "left" | "right", file: File) => {
+    readFileAsText(file)
+      .then((text) => loadInto(which, text))
+      .catch(() => {
+        // Drop silently if file is unreadable; the empty input handles it.
+      });
+  };
+
+  const leftDrop = useFileDrop((text) => loadInto("left", text));
+  const rightDrop = useFileDrop((text) => loadInto("right", text));
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -159,6 +169,8 @@ export default function JsonDiff() {
           onChange={setLeft}
           onFile={(f) => handleFile("left", f)}
           onFocus={ensureWorker}
+          isDragging={leftDrop.isDragging}
+          dropProps={leftDrop.dropProps}
         />
         <InputPane
           label="Right (after)"
@@ -167,6 +179,8 @@ export default function JsonDiff() {
           onChange={setRight}
           onFile={(f) => handleFile("right", f)}
           onFocus={ensureWorker}
+          isDragging={rightDrop.isDragging}
+          dropProps={rightDrop.dropProps}
         />
       </div>
 
@@ -198,6 +212,8 @@ function InputPane({
   onChange,
   onFile,
   onFocus,
+  isDragging,
+  dropProps,
 }: {
   label: string;
   id: string;
@@ -205,6 +221,8 @@ function InputPane({
   onChange: (v: string) => void;
   onFile: (f: File) => void;
   onFocus: () => void;
+  isDragging: boolean;
+  dropProps: React.HTMLAttributes<HTMLTextAreaElement>;
 }) {
   return (
     <div className="flex min-h-[20rem] flex-col gap-2 lg:min-h-[24rem]">
@@ -235,8 +253,13 @@ function InputPane({
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
         spellCheck={false}
-        placeholder={"Paste JSON here…"}
-        className="h-full w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-sm leading-6 text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
+        placeholder={isDragging ? "Drop JSON file to load…" : "Paste JSON here…"}
+        {...dropProps}
+        className={`h-full w-full resize-none rounded-md border-2 px-3 py-2 font-mono text-sm leading-6 outline-none transition-colors ${
+          isDragging
+            ? "border-zinc-500 bg-zinc-100 text-zinc-900 dark:border-zinc-400 dark:bg-zinc-900 dark:text-zinc-100"
+            : "border-zinc-200 bg-white text-zinc-900 focus:border-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-500"
+        }`}
       />
     </div>
   );
