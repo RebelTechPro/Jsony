@@ -24,7 +24,7 @@ const tools = [
     slug: "jwt-decoder",
     name: "JWT Decoder",
     description: "Decode a JWT to inspect its header and payload.",
-    status: "planned",
+    status: "in-progress",
   },
   {
     slug: "base64",
