@@ -30,7 +30,7 @@ const tools = [
     slug: "base64",
     name: "Base64 Encoder & Decoder",
     description: "Encode or decode Base64 strings.",
-    status: "planned",
+    status: "in-progress",
   },
 ] as const;
 
