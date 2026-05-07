@@ -145,6 +145,26 @@ Use dynamic imports for the JSON parser, JSONPath engine, and diff library. They
 - Strengthen winners; rework or remove non-performers
 - Add adjacent tools based on actual search traffic
 
+## Candidate tools (data-gated — do not build until Phase 3 signal justifies)
+
+Considered during Phase 2 wrap-up (2026-05-06) and parked. Each ranked by fit with Jsony's positioning ("JSON-flavored, fast, private dev tools") and ease of execution. Pull from this list when Search Console data shows demand — don't build speculatively.
+
+**Tier 1 — natural extensions of the JSON brand.** Low risk, real demand, won't dilute positioning.
+- **JSON minifier** — inverse of formatter. Reuses parse + stringify (no indent). ~1 hour. Cheapest possible addition. Best candidate for "I want to ship something while waiting for Search Console data."
+- **CSV to JSON** — mirror of `/json-to-csv`. Same code structure, opposite direction. Doubles the converter audience.
+- **JSON ↔ YAML** — format conversion in the CSV vein. YAML is huge in DevOps/infra; flipping between the two is a constant need.
+- **JSON to TypeScript types** — paste JSON, generate TS interfaces. quicktype.io owns this space but a focused, fast page can compete on the long tail.
+
+**Tier 2 — JSON-adjacent, slightly outside core positioning.** Worth doing if data shows demand, more work each.
+- **JSON Schema validator** — validates JSON against a JSON Schema document. Real depth (the spec is large). The people who need this really need it.
+- **JSONPath tester (standalone)** — pulls the formatter's existing JSONPath bar onto its own SEO page targeting the keyword "jsonpath tester."
+- **JWT generator** — pair with the decoder. Useful for testing flows; smaller audience than the decoder itself.
+
+**Tier 3 — generic dev tools.** Would dilute the JSON-flavored brand. Don't add unless we deliberately reposition Jsony as a broad dev-tools site (would require reworking the tagline, hero copy, and probably the brand promise around "JSON, fast and local").
+- URL encoder/decoder, UUID generator, hash generators (SHA/MD5), regex tester, color converters, lorem ipsum generator, etc.
+
+**Decision rule:** before pulling from Tier 1, look at Search Console for two specific signals: (a) is the formatter (the anchor) actually getting impressions? if not, fix that before splitting attention; (b) are there queries showing up that map to a Tier 1 tool but landing on a less-fit page? that's a wedge — build the tool that captures that exact query.
+
 ## Code Standards
 
 - TypeScript strict mode
