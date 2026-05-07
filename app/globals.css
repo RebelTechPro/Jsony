@@ -10,3 +10,104 @@
 body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+/* JSON diff output styling — scoped under .jsondiff-root so it can't bleed
+   to the rest of the app. Overrides jsondiffpatch's bundled CSS to match
+   Jsony's palette and respect dark mode. */
+.jsondiff-root .jsondiffpatch-delta,
+.jsondiff-root .jsondiffpatch-delta pre {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+  display: inline-block;
+}
+.jsondiff-root ul.jsondiffpatch-delta,
+.jsondiff-root .jsondiffpatch-delta ul {
+  list-style-type: none;
+  padding: 0 0 0 1.25rem;
+  margin: 0;
+}
+.jsondiff-root .jsondiffpatch-property-name {
+  color: rgb(63 63 70);
+  margin-right: 0.25rem;
+}
+.dark .jsondiff-root .jsondiffpatch-property-name {
+  color: rgb(212 212 216);
+}
+.jsondiff-root .jsondiffpatch-value pre {
+  color: rgb(63 63 70);
+}
+.dark .jsondiff-root .jsondiffpatch-value pre {
+  color: rgb(212 212 216);
+}
+/* Added */
+.jsondiff-root .jsondiffpatch-added .jsondiffpatch-property-name,
+.jsondiff-root .jsondiffpatch-added .jsondiffpatch-value pre,
+.jsondiff-root .jsondiffpatch-textdiff-added {
+  background: rgb(220 252 231);
+  color: rgb(6 78 59);
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+}
+.dark .jsondiff-root .jsondiffpatch-added .jsondiffpatch-property-name,
+.dark .jsondiff-root .jsondiffpatch-added .jsondiffpatch-value pre,
+.dark .jsondiff-root .jsondiffpatch-textdiff-added {
+  background: rgb(6 78 59 / 0.4);
+  color: rgb(167 243 208);
+}
+/* Deleted */
+.jsondiff-root .jsondiffpatch-deleted .jsondiffpatch-property-name,
+.jsondiff-root .jsondiffpatch-deleted pre,
+.jsondiff-root .jsondiffpatch-textdiff-deleted {
+  background: rgb(254 226 226);
+  color: rgb(127 29 29);
+  text-decoration: line-through;
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+}
+.dark .jsondiff-root .jsondiffpatch-deleted .jsondiffpatch-property-name,
+.dark .jsondiff-root .jsondiffpatch-deleted pre,
+.dark .jsondiff-root .jsondiffpatch-textdiff-deleted {
+  background: rgb(127 29 29 / 0.4);
+  color: rgb(254 202 202);
+}
+/* Modified — left (was) red, right (now) green */
+.jsondiff-root .jsondiffpatch-modified .jsondiffpatch-left-value pre {
+  background: rgb(254 226 226);
+  color: rgb(127 29 29);
+  text-decoration: line-through;
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+  margin-right: 0.25rem;
+}
+.dark .jsondiff-root .jsondiffpatch-modified .jsondiffpatch-left-value pre {
+  background: rgb(127 29 29 / 0.4);
+  color: rgb(254 202 202);
+}
+.jsondiff-root .jsondiffpatch-modified .jsondiffpatch-right-value pre {
+  background: rgb(220 252 231);
+  color: rgb(6 78 59);
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+}
+.dark .jsondiff-root .jsondiffpatch-modified .jsondiffpatch-right-value pre {
+  background: rgb(6 78 59 / 0.4);
+  color: rgb(167 243 208);
+}
+/* Unchanged — muted */
+.jsondiff-root .jsondiffpatch-unchanged,
+.jsondiff-root .jsondiffpatch-movedestination {
+  color: rgb(113 113 122);
+}
+.dark .jsondiff-root .jsondiffpatch-unchanged,
+.dark .jsondiff-root .jsondiffpatch-movedestination {
+  color: rgb(113 113 122);
+}
+.jsondiff-root .jsondiffpatch-arrow {
+  display: none;
+}
+.jsondiff-root .jsondiffpatch-error {
+  color: rgb(190 18 60);
+}

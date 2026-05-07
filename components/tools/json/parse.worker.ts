@@ -6,11 +6,13 @@ import {
   type Settings,
 } from "@/lib/json/settings";
 import { toCsv, type CsvOptions } from "@/lib/json/to-csv";
+import { diffJson } from "@/lib/json/diff";
 
 type WorkerRequest =
   | { kind: "parse"; id: number; input: string; settings: Settings }
   | { kind: "query"; id: number; path: string }
-  | { kind: "csv"; id: number; options: CsvOptions };
+  | { kind: "csv"; id: number; options: CsvOptions }
+  | { kind: "diff"; id: number; leftInput: string; rightInput: string };
 
 export type WorkerResponse =
   | {
@@ -55,6 +57,21 @@ export type WorkerResponse =
       kind: "csv";
       ok: false;
       error: string;
+    }
+  | {
+      id: number;
+      kind: "diff";
+      ok: true;
+      html: string;
+      hasDiff: boolean;
+    }
+  | {
+      id: number;
+      kind: "diff";
+      ok: false;
+      leftErrors?: RichError[];
+      rightErrors?: RichError[];
+      error?: string;
     };
 
 let cached: { value: unknown } | null = null;
@@ -66,6 +83,8 @@ self.addEventListener("message", (e: MessageEvent<WorkerRequest>) => {
     handleQuery(e.data.id, e.data.path);
   } else if (e.data.kind === "csv") {
     handleCsv(e.data.id, e.data.options);
+  } else if (e.data.kind === "diff") {
+    handleDiff(e.data.id, e.data.leftInput, e.data.rightInput);
   }
 });
 
@@ -217,6 +236,64 @@ function handleCsv(id: number, options: CsvOptions) {
       kind: "csv",
       ok: false,
       error: message,
+    };
+    self.postMessage(response);
+  }
+}
+
+function handleDiff(id: number, leftInput: string, rightInput: string) {
+  const left = parseRich(leftInput);
+  const right = parseRich(rightInput);
+
+  if (!left.ok || !right.ok) {
+    const response: WorkerResponse = {
+      id,
+      kind: "diff",
+      ok: false,
+      leftErrors: left.ok ? undefined : left.errors,
+      rightErrors: right.ok ? undefined : right.errors,
+    };
+    self.postMessage(response);
+    return;
+  }
+
+  if (left.value === undefined || right.value === undefined) {
+    const response: WorkerResponse = {
+      id,
+      kind: "diff",
+      ok: false,
+      error: "Both sides must contain JSON.",
+    };
+    self.postMessage(response);
+    return;
+  }
+
+  try {
+    const result = diffJson(left.value, right.value);
+    if (!result.ok) {
+      const response: WorkerResponse = {
+        id,
+        kind: "diff",
+        ok: false,
+        error: result.error,
+      };
+      self.postMessage(response);
+      return;
+    }
+    const response: WorkerResponse = {
+      id,
+      kind: "diff",
+      ok: true,
+      html: result.html,
+      hasDiff: result.hasDiff,
+    };
+    self.postMessage(response);
+  } catch (err) {
+    const response: WorkerResponse = {
+      id,
+      kind: "diff",
+      ok: false,
+      error: err instanceof Error ? err.message : "Diff failed.",
     };
     self.postMessage(response);
   }

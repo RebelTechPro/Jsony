@@ -18,7 +18,7 @@ const tools = [
     slug: "json-diff",
     name: "JSON Diff",
     description: "Compare two JSON documents and see what changed.",
-    status: "planned",
+    status: "in-progress",
   },
   {
     slug: "jwt-decoder",
