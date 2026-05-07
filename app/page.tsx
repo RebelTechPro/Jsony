@@ -12,7 +12,7 @@ const tools = [
     slug: "json-to-csv",
     name: "JSON to CSV",
     description: "Convert JSON arrays into CSV.",
-    status: "planned",
+    status: "in-progress",
   },
   {
     slug: "json-diff",

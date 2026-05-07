@@ -5,10 +5,12 @@ import {
   indentToString,
   type Settings,
 } from "@/lib/json/settings";
+import { toCsv, type CsvOptions } from "@/lib/json/to-csv";
 
 type WorkerRequest =
   | { kind: "parse"; id: number; input: string; settings: Settings }
-  | { kind: "query"; id: number; path: string };
+  | { kind: "query"; id: number; path: string }
+  | { kind: "csv"; id: number; options: CsvOptions };
 
 export type WorkerResponse =
   | {
@@ -38,6 +40,21 @@ export type WorkerResponse =
       kind: "query";
       ok: false;
       error: string;
+    }
+  | {
+      id: number;
+      kind: "csv";
+      ok: true;
+      csv: string;
+      rows: number;
+      columns: number;
+      bytes: number;
+    }
+  | {
+      id: number;
+      kind: "csv";
+      ok: false;
+      error: string;
     };
 
 let cached: { value: unknown } | null = null;
@@ -47,6 +64,8 @@ self.addEventListener("message", (e: MessageEvent<WorkerRequest>) => {
     handleParse(e.data.id, e.data.input, e.data.settings ?? DEFAULT_SETTINGS);
   } else if (e.data.kind === "query") {
     handleQuery(e.data.id, e.data.path);
+  } else if (e.data.kind === "csv") {
+    handleCsv(e.data.id, e.data.options);
   }
 });
 
@@ -148,6 +167,54 @@ function handleQuery(id: number, path: string) {
     const response: WorkerResponse = {
       id,
       kind: "query",
+      ok: false,
+      error: message,
+    };
+    self.postMessage(response);
+  }
+}
+
+function handleCsv(id: number, options: CsvOptions) {
+  if (cached === null) {
+    const response: WorkerResponse = {
+      id,
+      kind: "csv",
+      ok: false,
+      error: "No JSON loaded.",
+    };
+    self.postMessage(response);
+    return;
+  }
+
+  try {
+    const result = toCsv(cached.value, options);
+    if (!result.ok) {
+      const response: WorkerResponse = {
+        id,
+        kind: "csv",
+        ok: false,
+        error: result.error,
+      };
+      self.postMessage(response);
+      return;
+    }
+    const bytes = new Blob([result.csv]).size;
+    const response: WorkerResponse = {
+      id,
+      kind: "csv",
+      ok: true,
+      csv: result.csv,
+      rows: result.rows,
+      columns: result.columns,
+      bytes,
+    };
+    self.postMessage(response);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Unknown error during CSV conversion.";
+    const response: WorkerResponse = {
+      id,
+      kind: "csv",
       ok: false,
       error: message,
     };
